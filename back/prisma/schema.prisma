@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//////////////////////////////////////////////////////
+// ENUMS
+//////////////////////////////////////////////////////
+
+enum UserRole {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum SectionType {
+  ARTICLE
+  TABLE
+  APPENDIX
+  NOTE
+  OTHER
+}
+
+enum ChunkType {
+  PARAGRAPH
+  RETRIEVAL
+  RAG
+}
+
+enum DocumentStatus {
+  ACTIVE
+  ARCHIVED
+}
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+
+}
+
+
+//////////////////////////////////////////////////////
+// USERS
+//////////////////////////////////////////////////////
+
+model User {
+  id          String   @id @default(uuid())
+  username    String   @unique
+  name        String   
+  password    String
+  role        UserRole @default(VIEWER)
+  status      UserStatus @default(ACTIVE)
+  created_at  DateTime @default(now())
+
+  // Relations
+  createdDocuments  Document[]        @relation("DocumentCreatedBy")
+  uploadedVersions  DocumentVersion[] @relation("VersionUploadedBy")
+
+  @@map("users")
+}
+
+//////////////////////////////////////////////////////
+// DOCUMENT
+//////////////////////////////////////////////////////
+
+model Document {
+  id                String   @id @default(uuid())
+
+  title             String
+  doc_code          String   @unique
+
+  issue_date        DateTime?
+  issue_date_jalali String?
+
+  status            DocumentStatus @default(ACTIVE)
+
+  // Audit fields
+  createdById       String?
+  created_by        User? @relation("DocumentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  // Relations
+  chunks            Chunk[]
+  versions          DocumentVersion[]
+
+  @@index([createdById])
+  @@map("documents")
+}
+
+//////////////////////////////////////////////////////
+// DOCUMENT VERSION
+//////////////////////////////////////////////////////
+
+model DocumentVersion {
+  id              String   @id @default(uuid())
+
+  documentId      String
+  versionNumber   Int
+
+  file_url        String
+  file_size       Int?
+
+  // Audit fields
+  uploadedById    String?
+  uploaded_by     User? @relation("VersionUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  created_at      DateTime @default(now())
+
+  // Relations
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunks          Chunk[]
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId])
+  @@index([uploadedById]) 
+  @@map("document_versions")
+}
+
+//////////////////////////////////////////////////////
+// CHUNKS
+//////////////////////////////////////////////////////
+
+model Chunk {
+  id              String   @id @default(uuid())
+
+  versionId       String
+  documentId      String
+
+  pageNumber      Int?
+  chunkIndex      Int
+  type            ChunkType
+
+  text            String
+  normalizedText  String
+
+  paragraphStart  Int?
+  paragraphEnd    Int?
+
+  charLength      Int
+
+  metadata        Json?
+
+  createdAt       DateTime @default(now())
+
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version         DocumentVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  embedding       Embedding?
+
+  @@index([documentId, type])
+  @@index([documentId])
+  @@index([versionId])
+  @@index([type])
+  @@index([chunkIndex])
+
+  @@map("chunks")
+}
+
+//////////////////////////////////////////////////////
+// EMBEDDINGS
+//////////////////////////////////////////////////////
+model Embedding {
+  id        String  @id @default(uuid())
+
+  chunkId   String  @unique
+
+  vector    Json
+
+  modelName String
+
+  createdAt DateTime @default(now())
+
+chunk Chunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@map("embeddings")
+}
