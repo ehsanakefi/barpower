@@ -1,75 +1,81 @@
-import express from 'express';
-import bodyParser from 'body-parser';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import authRoutes from './routes/auth.routes';
-import documentRoutes from './routes/document.routes';
-import searchRoutes from './routes/search.routes';
-import unifiedSearchRoutes from './routes/unifiedSearch.routes';
-import userRoutes from './routes/user.routes';
-import logsRoutes from './routes/logs.routes';
-import notificationsRoutes from './routes/notifications.routes';
-import aiRoutes from './routes/ai.routes';
-import filterRoutes from './routes/filter.routes';
-import { connectToDatabase } from './database/connection';
-import path from 'path';
-
-// Load environment variables
-dotenv.config();
+import express, { Request, Response, NextFunction } from "express";
+import cors from "cors";
+import { notFoundHandler } from "./middleware/notFound.middleware";
+import { errorHandler } from "./middleware/error.middleware";
+// ایمپورت مسیرها (Routes)
+import feederRoutes from "./routes/feeder.routes";
+import datasetRoutes from "./routes/dataset.routes";
+import temporalConstraintRoutes from "./routes/temporalConstraint.routes";
+import feederRelationRoutes from "./routes/feederRelation.routes";
+import scheduleRoutes from "./routes/schedule.routes";
+import apiRoutes from "./routes";
 
 const app = express();
-const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(
+  cors({
+    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    credentials: true,
+  }),
+);
 
-// Connect to database
-connectToDatabase();
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/documents', documentRoutes);
-app.use('/api/documents/search', searchRoutes);  // Legacy search endpoint
-app.use('/api/search', unifiedSearchRoutes);     // New unified search endpoint
-app.use('/api/admin/documents', documentRoutes);  // Admin endpoint for adding documents
-app.use('/api/users', userRoutes);               // User management endpoints
-app.use('/api/logs', logsRoutes);                // System logs endpoints
-app.use('/api/notifications', notificationsRoutes); // Notifications endpoints
-app.use('/api/ai', aiRoutes);                    // AI assistant endpoints
-app.use('/api/filter', filterRoutes);            // Filter endpoints
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    success: true, 
-    message: 'DocPower Backend API is running!',
-    timestamp: new Date().toISOString()
+if (process.env.NODE_ENV !== "production") {
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    console.log(
+      `[${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`,
+    );
+    next();
   });
+}
+
+app.get("/health", (_req: Request, res: Response) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// 404 handler
-app.use('*', (req, res) => {
+app.use("/api", apiRoutes);
+
+app.use((req: Request, res: Response) => {
   res.status(404).json({
     success: false,
-    message: `Route ${req.originalUrl} not found`
+    message: `مسیر ${req.method} ${req.originalUrl} در سرور تعریف نشده است.`,
   });
 });
 
-// Error handler
-app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Unhandled error:', error);
-  res.status(500).json({
+app.use(notFoundHandler);
+
+app.use(errorHandler);
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  console.error("Server Error:", err);
+
+  if (err.name === "ZodError") {
+    return res.status(400).json({
+      success: false,
+      message: "داده‌های ارسالی نامعتبر هستند.",
+      errors: err.errors,
+    });
+  }
+
+  if (err.code === "P2002") {
+    return res.status(409).json({
+      success: false,
+      message: "یک رکورد با این مشخصات یکتا از قبل در دیتابیس وجود دارد.",
+    });
+  }
+
+  if (err.type === "entity.too.large") {
+    return res.status(413).json({
+      success: false,
+      message: "حجم داده‌های ارسالی فایل اکسل بیشتر از حد مجاز سرور است.",
+    });
+  }
+
+  return res.status(err.status || 500).json({
     success: false,
-    message: 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+    message: err.message || "خطای داخلی سرور رخ داده است.",
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 DocPower Backend Server is running on http://localhost:${PORT}`);
-  console.log(`📚 Document Search API: http://localhost:${PORT}/api/documents/search`);
-  console.log(`🔧 Admin API: http://localhost:${PORT}/api/admin/documents`);
-  console.log(`💊 Health Check: http://localhost:${PORT}/health`);
-});
+export default app;
