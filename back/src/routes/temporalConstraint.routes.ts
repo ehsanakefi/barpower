@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { TemporalConstraintController } from "../controllers/temporalConstraint.controller";
-import { validate } from "../middleware/validate.middleware";
+import { validate } from "../middleware/validation.middleware";
 import { createTemporalConstraintsSchema } from "../validation/temporalConstraint.schema";
 
 const router = Router();

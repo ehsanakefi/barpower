@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { DatasetController } from "../controllers/dataset.controller";
-import { validate } from "../middleware/validate.middleware";
+import { validate } from "../middleware/validation.middleware";
 import { uploadLoadRecordsSchema } from "../validation/loadRecord.schema";
 
 const router = Router();

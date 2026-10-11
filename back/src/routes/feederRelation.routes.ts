@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { FeederRelationController } from "../controllers/feederRelation.controller";
-import { validate } from "../middleware/validate.middleware";
+import { validate } from "../middleware/validation.middleware";
 import { createFeederRelationsSchema } from "../validation/feederRelation.schema";
 
 const router = Router();

@@ -10,7 +10,11 @@ export class FeederRelationService {
   static async getAll(datasetId?: string) {
     return prisma.feederRelation.findMany({
       where: datasetId ? { datasetId } : undefined,
-      include: { aFeeder: true, bFeeder: true, dataset: true },
+      include: {
+        baseFeeder: true, // تغییر از aFeeder
+        relatedFeeder: true, // تغییر از bFeeder
+        dataset: true,
+      },
       orderBy: [{ relationType: "asc" }],
     });
   }
@@ -26,7 +30,14 @@ export class FeederRelationService {
       });
 
       const feederCodes = Array.from(
-        new Set(relations.flatMap((r) => [r.aFeederCode, r.bFeederCode])),
+        new Set(
+          relations
+            .flatMap((r: any) => [
+              r.baseFeederCode || r.aFeederCode,
+              r.relatedFeederCode || r.bFeederCode,
+            ])
+            .filter(Boolean),
+        ),
       );
 
       const feeders = await tx.feeder.findMany({
@@ -48,13 +59,17 @@ export class FeederRelationService {
       }
 
       await tx.feederRelation.createMany({
-        data: relations.map((r) => ({
-          datasetId: dataset.id,
-          aFeederId: map.get(r.aFeederCode)!,
-          bFeederId: map.get(r.bFeederCode)!,
-          relationType: r.relationType,
-        })),
-        skipDuplicates: true, // اگر در schema unique گذاشته باشید
+        data: relations.map((r: any) => {
+          const baseCode = r.baseFeederCode || r.aFeederCode;
+          const relatedCode = r.relatedFeederCode || r.bFeederCode;
+          return {
+            datasetId: dataset.id,
+            baseFeederId: map.get(baseCode)!, // اصلاح به baseFeederId
+            relatedFeederId: map.get(relatedCode)!, // اصلاح به relatedFeederId
+            relationType: r.relationType,
+          };
+        }),
+        skipDuplicates: true,
       });
 
       return dataset;

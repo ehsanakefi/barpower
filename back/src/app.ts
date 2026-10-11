@@ -1,17 +1,10 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
-import { notFoundHandler } from "./middleware/notFound.middleware";
-import { errorHandler } from "./middleware/error.middleware";
-// ایمپورت مسیرها (Routes)
-import feederRoutes from "./routes/feeder.routes";
-import datasetRoutes from "./routes/dataset.routes";
-import temporalConstraintRoutes from "./routes/temporalConstraint.routes";
-import feederRelationRoutes from "./routes/feederRelation.routes";
-import scheduleRoutes from "./routes/schedule.routes";
 import apiRoutes from "./routes";
 
-const app = express();
+export const app = express();
 
+// ۱. تنظیمات CORS
 app.use(
   cors({
     origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -19,9 +12,11 @@ app.use(
   }),
 );
 
+// ۲. پارس کردن داده‌های ورودی
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
+// ۳. لاگر در محیط توسعه
 if (process.env.NODE_ENV !== "production") {
   app.use((req: Request, _res: Response, next: NextFunction) => {
     console.log(
@@ -31,12 +26,15 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
+// ۴. بررسی سلامت سرور
 app.get("/health", (_req: Request, res: Response) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// ۵. مسیرهای اصلی API
 app.use("/api", apiRoutes);
 
+// ۶. مدیریت مسیرهای یافت‌نشده (404 Not Found)
 app.use((req: Request, res: Response) => {
   res.status(404).json({
     success: false,
@@ -44,12 +42,11 @@ app.use((req: Request, res: Response) => {
   });
 });
 
-app.use(notFoundHandler);
-
-app.use(errorHandler);
+// ۷. میان‌افزار مدیریت خطای مرکزی
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   console.error("Server Error:", err);
 
+  // خطاهای اعتبارسنجی Zod
   if (err.name === "ZodError") {
     return res.status(400).json({
       success: false,
@@ -58,6 +55,7 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     });
   }
 
+  // خطای نقض یکتایی دیتابیس (Prisma Unique Constraint)
   if (err.code === "P2002") {
     return res.status(409).json({
       success: false,
@@ -65,6 +63,7 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     });
   }
 
+  // خطای عبور حجم داده از سقف مجاز
   if (err.type === "entity.too.large") {
     return res.status(413).json({
       success: false,
@@ -72,6 +71,7 @@ app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     });
   }
 
+  // سایر خطاهای سرور
   return res.status(err.status || 500).json({
     success: false,
     message: err.message || "خطای داخلی سرور رخ داده است.",

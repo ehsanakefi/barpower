@@ -2,17 +2,19 @@ import { prisma } from "../database/prisma";
 
 type TemporalConstraintInput = {
   feederCode: string;
-  dayOfWeek: number; // 0..6
-  hour: number; // 1..24
-  state: number; // کد محدودیت (مثلاً 0..6)
+  date: string;
+  constraintCode: number;
 };
 
 export class TemporalConstraintService {
   static async getAll(datasetId?: string) {
     return prisma.temporalConstraint.findMany({
       where: datasetId ? { datasetId } : undefined,
-      include: { feeder: true, dataset: true },
-      orderBy: [{ feederId: "asc" }, { dayOfWeek: "asc" }, { hour: "asc" }],
+      include: {
+        feeder: true,
+        dataset: true,
+      },
+      orderBy: [{ feederId: "asc" }, { date: "asc" }],
     });
   }
 
@@ -28,38 +30,51 @@ export class TemporalConstraintService {
 
     return prisma.$transaction(async (tx) => {
       const dataset = await tx.dataset.create({
-        data: { name: datasetName, type: "TEMPORAL_CONSTRAINTS" },
+        data: {
+          name: datasetName,
+          type: "TEMPORAL_CONSTRAINTS",
+        },
       });
 
       const feederCodes = Array.from(
-        new Set(constraints.map((c) => c.feederCode)),
+        new Set(constraints.map((constraint) => constraint.feederCode)),
       );
-      const feeders = await tx.feeder.findMany({
-        where: { code: { in: feederCodes } },
-        select: { id: true, code: true },
-      });
-      const map = new Map(feeders.map((f) => [f.code, f.id]));
 
-      // اطمینان: همه feederCode ها وجود داشته باشند
-      const missing = feederCodes.filter((c) => !map.has(c));
-      if (missing.length) {
+      const feeders = await tx.feeder.findMany({
+        where: {
+          code: {
+            in: feederCodes,
+          },
+        },
+        select: {
+          id: true,
+          code: true,
+        },
+      });
+
+      const feederIdByCode = new Map(
+        feeders.map((feeder) => [feeder.code, feeder.id]),
+      );
+
+      const missingFeederCodes = feederCodes.filter(
+        (code) => !feederIdByCode.has(code),
+      );
+
+      if (missingFeederCodes.length > 0) {
         throw Object.assign(
           new Error(
-            `این فیدرها در دیتابیس ثبت نشده‌اند: ${missing.join(", ")}`,
+            `این فیدرها در دیتابیس ثبت نشده‌اند: ${missingFeederCodes.join(", ")}`,
           ),
-          {
-            status: 400,
-          },
+          { status: 400 },
         );
       }
 
       await tx.temporalConstraint.createMany({
-        data: constraints.map((c) => ({
+        data: constraints.map((constraint) => ({
           datasetId: dataset.id,
-          feederId: map.get(c.feederCode)!,
-          dayOfWeek: c.dayOfWeek,
-          hour: c.hour,
-          state: c.state,
+          feederId: feederIdByCode.get(constraint.feederCode)!,
+          date: constraint.date,
+          constraintCode: constraint.constraintCode,
         })),
       });
 

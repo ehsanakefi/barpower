@@ -3,31 +3,51 @@ import { prisma } from "../database/prisma";
 export class FeederService {
   static async getAll() {
     return prisma.feeder.findMany({
-      orderBy: { name: "asc" },
+      orderBy: { code: "asc" },
     });
   }
 
   static async getById(id: string) {
-    return prisma.feeder.findUnique({ where: { id } });
+    return prisma.feeder.findUnique({
+      where: { id },
+    });
   }
 
   static async create(data: {
     code: string;
     name: string;
-    stationCode?: string | null;
+    substationName?: string | null;
   }) {
     return prisma.feeder.create({
       data: {
         code: data.code,
         name: data.name,
-        stationCode: data.stationCode ?? null,
+        substationName: data.substationName ?? null,
+      },
+    });
+  }
+
+  static async update(
+    id: string,
+    data: {
+      name?: string;
+      substationName?: string | null;
+    },
+  ) {
+    return prisma.feeder.update({
+      where: { id },
+      data: {
+        ...(data.name && { name: data.name }),
+        ...(data.substationName !== undefined && {
+          substationName: data.substationName,
+        }),
       },
     });
   }
 
   static async delete(id: string) {
-    // اگر در schema روابط onDelete: Cascade گذاشته باشید، خیلی ساده می‌شود
-    // در غیر اینصورت باید قبلش رکوردهای وابسته را پاک کنید.
-    return prisma.feeder.delete({ where: { id } });
+    return prisma.feeder.delete({
+      where: { id },
+    });
   }
 }
