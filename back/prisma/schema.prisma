@@ -11,6 +11,11 @@ generator client {
 // ۱. اینام‌ها (Enums)
 // ==========================================
 
+enum Role {
+  ADMIN
+  USER
+}
+
 enum DatasetType {
   LOAD                  // داده‌های بار ساعتی
   TEMPORAL_CONSTRAINTS  // محدودیت‌های زمانی
@@ -32,7 +37,29 @@ enum RunStatus {
 }
 
 // ==========================================
-// ۲. فیدرها (Feeders)
+// ۲. کاربران و سطوح دسترسی (Users & Roles)
+// ==========================================
+model User {
+  id           String        @id @default(cuid())
+  email        String?       @unique
+  username     String        @unique
+  passwordHash String        // هش رمز عبور (bcrypt یا argon2)
+  fullName     String?
+  role         Role          @default(USER)
+  isActive     Boolean       @default(true)
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // سابقه عملیات کاربر (اختیاری جهت Audit Log)
+  datasets     Dataset[]
+  scheduleRuns ScheduleRun[]
+
+  @@map("users")
+}
+
+// ==========================================
+// ۳. فیدرها (Feeders)
 // ==========================================
 model Feeder {
   id             String   @id @default(cuid())
@@ -53,7 +80,7 @@ model Feeder {
 }
 
 // ==========================================
-// ۳. مجموعه‌داده‌ها و فایل‌های آپلود شده (Datasets)
+// ۴. مجموعه‌داده‌ها و فایل‌های آپلود شده (Datasets)
 // ==========================================
 model Dataset {
   id          String      @id @default(cuid())
@@ -62,6 +89,10 @@ model Dataset {
   fileName    String?     // نام اصلی فایل اکسل
   recordCount Int         @default(0)
   version     Int         @default(1)
+
+  // کاربری که فایل یا مجموعه را ثبت کرده
+  userId      String?
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -80,7 +111,7 @@ model Dataset {
 }
 
 // ==========================================
-// ۴. رکوردهای بار مصرفی ساعتی (Load Records)
+// ۵. رکوردهای بار مصرفی ساعتی (Load Records)
 // ==========================================
 model LoadRecord {
   id                String   @id @default(cuid())
@@ -133,7 +164,7 @@ model LoadRecord {
 }
 
 // ==========================================
-// ۵. محدودیت‌های زمانی فیدرها (Temporal Constraints)
+// ۶. محدودیت‌های زمانی فیدرها (Temporal Constraints)
 // ==========================================
 model TemporalConstraint {
   id             String   @id @default(cuid())
@@ -154,7 +185,7 @@ model TemporalConstraint {
 }
 
 // ==========================================
-// ۶. روابط بین فیدرها (Feeder Relations)
+// ۷. روابط بین فیدرها (Feeder Relations)
 // ==========================================
 model FeederRelation {
   id              String       @id @default(cuid())
@@ -176,13 +207,17 @@ model FeederRelation {
 }
 
 // ==========================================
-// ۷. درخواست‌های اجرای محاسبه هفتگی (Schedule Runs)
+// ۸. درخواست‌های اجرای محاسبه هفتگی (Schedule Runs)
 // ==========================================
 model ScheduleRun {
   id            String    @id @default(cuid())
   status        RunStatus @default(READY)
   weekStartDate String    // تاریخ شروع هفته (مثلاً ۱۴۰۳/۰۶/۱۰)
   errorMessage  String?
+
+  // کاربری که دستور اجرا را صادر کرده
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   // شناسه‌های مجموعه‌های ورودی که برای این محاسبه استفاده شده‌اند
   loadDatasetId     String?
@@ -204,7 +239,7 @@ model ScheduleRun {
 }
 
 // ==========================================
-// ۸. رویدادهای تقویم خاموشی نهایی (Outage Events)
+// ۹. رویدادهای تقویم خاموشی نهایی (Outage Events)
 // ==========================================
 model OutageEvent {
   id        String      @id @default(cuid())

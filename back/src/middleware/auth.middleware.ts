@@ -1,25 +1,39 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import { AuthService } from "../services/auth.service";
 
-const secretKey = process.env.JWT_SECRET || "your_secret_key";
-
-export const authenticate = (
+export function authMiddleware(
   req: Request,
   res: Response,
   next: NextFunction,
-) => {
-  const token = req.headers["authorization"]?.split(" ")[1];
+) {
+  const authorization = req.header("Authorization");
 
-  if (!token) {
-    return res.status(401).json({ message: "No token provided" });
+  if (!authorization) {
+    return res.status(401).json({
+      success: false,
+      message: "توکن احراز هویت ارسال نشده است.",
+    });
   }
 
-  jwt.verify(token, secretKey, (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ message: "Failed to authenticate token" });
-    }
+  const [scheme, token] = authorization.split(" ");
 
-    req.user = decoded;
-    next();
-  });
-};
+  if (scheme !== "Bearer" || !token) {
+    return res.status(401).json({
+      success: false,
+      message: "فرمت توکن نامعتبر است.",
+    });
+  }
+
+  try {
+    const payload = AuthService.verifyToken(token);
+
+    req.user = payload;
+
+    return next();
+  } catch (error: any) {
+    return res.status(error?.status || 401).json({
+      success: false,
+      message: error?.message || "توکن نامعتبر یا منقضی شده است.",
+    });
+  }
+}

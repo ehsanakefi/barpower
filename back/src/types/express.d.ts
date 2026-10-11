@@ -1,11 +1,11 @@
-import { Multer } from 'multer';
+import type { AuthPayload } from "./auth";
 
 declare global {
   namespace Express {
     interface Request {
-      file?: Multer.File;
-      files?: Multer.File[] | { [fieldname: string]: Multer.File[] };
-      user?: any;
+      user?: AuthPayload;
     }
   }
 }
+
+export {};
