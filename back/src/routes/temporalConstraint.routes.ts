@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { TemporalConstraintController } from "../controllers/temporal-constraint.controller";
+import { TemporalConstraintController } from "../controllers/temporalConstraint.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { requireRole } from "../middleware/role.middleware";
 import { Role } from "@prisma/client";
@@ -16,7 +16,7 @@ router.get(
 router.post(
   "/batch",
   requireRole(Role.SUPER_ADMIN, Role.USER),
-  TemporalConstraintController.createBatch,
+  TemporalConstraintController.createMany,
 );
 
 export default router;

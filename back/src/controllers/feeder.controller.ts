@@ -1,45 +1,59 @@
-// src/controllers/feeder.controller.ts
 import { Request, Response, NextFunction } from "express";
-import { FeederService } from "../services/feeder.service";
 import { Role } from "@prisma/client";
+import { FeederService } from "../services/feeder.service";
+import {
+  createFeederSchema,
+  updateFeederSchema,
+} from "../validation/feeder.schema";
+
+// هلپر برای استخراج امن داده‌های اعتبارسنجی شده صرف‌نظر از ساختار اسکیما
+function parsePayload(schema: any, req: Request) {
+  // اگر اسکیما شامل فیلد body باشد، کل req یا { body: req.body } را ارزیابی می‌کنیم
+  try {
+    const parsed = schema.parse(req.body);
+    return parsed.body !== undefined ? parsed.body : parsed;
+  } catch (err) {
+    // اگر شکست خورد، چک کنیم آیا اسکیما کل req یا { body } را انتظار دارد:
+    const parsed = schema.parse({
+      body: req.body,
+      params: req.params,
+      query: req.query,
+    });
+    return parsed.body !== undefined ? parsed.body : parsed;
+  }
+}
 
 export class FeederController {
-  // دریافت لیست فیدرها
   static async getAll(req: Request, res: Response, next: NextFunction) {
     try {
-      const companyId =
-        req.user?.role === Role.USER
-          ? req.user.companyId
-          : (req.query.companyId as string | undefined);
-
-      const feeders = await FeederService.getAll(companyId);
+      const user = (req as any).user;
+      const feeders = await FeederService.getAll(user);
       return res.status(200).json({ success: true, data: feeders });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 
-  // دریافت یک فیدر خاص
   static async getById(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const companyId =
-        req.user?.role === Role.USER ? req.user.companyId : undefined;
-
-      const feeder = await FeederService.getById(id, companyId);
+      const user = (req as any).user;
+      const feeder = await FeederService.getById(id, user);
       return res.status(200).json({ success: true, data: feeder });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 
-  // ایجاد فیدر جدید
   static async create(req: Request, res: Response, next: NextFunction) {
     try {
-      // اگر کاربر عادی است، companyId حتما مال خودش است؛
-      // اگر سوپرادمین است، باید مشخص کند فیدر برای کدام شرکت ساخته می‌شود
+      const user = (req as any).user;
+      const data = parsePayload(createFeederSchema, req);
+
       const targetCompanyId =
-        req.user?.role === Role.USER ? req.user.companyId : req.body.companyId;
+        user.role === Role.SUPER_ADMIN
+          ? data.companyId || req.body?.companyId || user.companyId
+          : user.companyId;
 
       if (!targetCompanyId) {
         return res.status(400).json({
@@ -49,29 +63,45 @@ export class FeederController {
       }
 
       const feeder = await FeederService.create({
-        ...req.body,
+        code: data.code,
+        name: data.name,
+        substationName: data.substationName,
         companyId: targetCompanyId,
       });
 
       return res.status(201).json({ success: true, data: feeder });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 
-  // حذف فیدر
+  static async update(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const user = (req as any).user;
+      const data = parsePayload(updateFeederSchema, req);
+
+      const updatedFeeder = await FeederService.update(id, user, data);
+
+      return res.status(200).json({ success: true, data: updatedFeeder });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   static async delete(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const companyId =
-        req.user?.role === Role.USER ? req.user.companyId : undefined;
+      const user = (req as any).user;
 
-      await FeederService.delete(id, companyId);
-      return res
-        .status(200)
-        .json({ success: true, message: "فیدر با موفقیت حذف شد." });
+      await FeederService.delete(id, user);
+
+      return res.status(200).json({
+        success: true,
+        message: "فیدر با موفقیت حذف شد.",
+      });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 }

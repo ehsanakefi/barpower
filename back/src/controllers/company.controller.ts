@@ -1,8 +1,35 @@
 // src/controllers/company.controller.ts
 import { Request, Response, NextFunction } from "express";
 import { CompanyService } from "../services/company.service";
+import { Request, Response, NextFunction } from "express";
+import { prisma } from "../database/prisma"; // یا مسیر مناسب پریزما در پروژه شما
 
 export class CompanyController {
+  static async disable(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const company = await prisma.company.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      res.status(200).json({ success: true, data: company });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async enable(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const company = await prisma.company.update({
+        where: { id },
+        data: { isActive: true },
+      });
+      res.status(200).json({ success: true, data: company });
+    } catch (error) {
+      next(error);
+    }
+  }
   static async getAll(req: Request, res: Response, next: NextFunction) {
     try {
       const companies = await CompanyService.getAll();

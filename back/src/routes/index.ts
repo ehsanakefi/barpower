@@ -3,8 +3,8 @@ import authRoutes from "./auth.routes";
 import companyRoutes from "./company.routes";
 import feederRoutes from "./feeder.routes";
 import datasetRoutes from "./dataset.routes";
-import temporalConstraintRoutes from "./temporal-constraint.routes";
-import feederRelationRoutes from "./feeder-relation.routes";
+import temporalConstraintRoutes from "./temporalConstraint.routes";
+import feederRelationRoutes from "./feederRelation.routes";
 import scheduleRoutes from "./schedule.routes";
 
 const apiRouter = Router();

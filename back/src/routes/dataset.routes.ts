@@ -8,26 +8,50 @@ const router = Router();
 
 router.use(authMiddleware);
 
-// مشاهده و بارگذاری برای هر دو نقش مجاز است
 router.get(
   "/",
   requireRole(Role.SUPER_ADMIN, Role.USER),
   DatasetController.getAll,
 );
+
 router.get(
   "/load-records",
   requireRole(Role.SUPER_ADMIN, Role.USER),
-  DatasetController.getLoadRecords,
+  DatasetController.getRecords,
 );
+
+// اضافه شدن روت ثبت دسته‌ای رکوردهای بار
+router.post(
+  "/load-records/batch",
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  DatasetController.batchCreateLoadRecords ||
+    DatasetController.uploadLoadRecords,
+);
+
 router.post(
   "/upload",
   requireRole(Role.SUPER_ADMIN, Role.USER),
-  DatasetController.upload,
+  DatasetController.uploadLoadRecords,
 );
+
+// دریافت تکی دیتاست
+router.get(
+  "/:id",
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  DatasetController.getById,
+);
+
+// ایجاد دیتاست متاداده
+router.post(
+  "/",
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  DatasetController.create,
+);
+
 router.delete(
   "/:id",
   requireRole(Role.SUPER_ADMIN, Role.USER),
-  DatasetController.delete,
+  DatasetController.deleteDataset,
 );
 
 export default router;

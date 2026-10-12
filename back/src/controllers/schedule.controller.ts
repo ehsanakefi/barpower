@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { ScheduleService } from "../services/schedule.service";
+import { prisma } from "../database/prisma";
 import { Role } from "@prisma/client";
 
 export class ScheduleController {
@@ -13,6 +14,41 @@ export class ScheduleController {
 
       const runs = await ScheduleService.getAllRuns(companyId);
       return res.status(200).json({ success: true, data: runs });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // گرفتن مشخصات یک اجرا با شناسه
+  static async getRunById(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const companyId =
+        req.user?.role === Role.USER ? req.user.companyId : undefined;
+
+      const where: any = { id };
+      if (companyId) {
+        where.companyId = companyId;
+      }
+
+      const run = await prisma.scheduleRun.findFirst({
+        where,
+        include: {
+          outageEvents: true,
+        },
+      });
+
+      if (!run) {
+        // برای جلوگیری از نشت داده، وقتی متعلق به این شرکت نیست ۴۰۴ می‌دهیم
+        return res
+          .status(404)
+          .json({
+            success: false,
+            message: "اجرا یافت نشد یا دسترسی غیرمجاز است.",
+          });
+      }
+
+      return res.status(200).json({ success: true, data: run });
     } catch (err) {
       next(err);
     }
@@ -43,7 +79,7 @@ export class ScheduleController {
         relationsDatasetId,
       } = req.body;
 
-      // 🔐 تعیین شرکت مجری زمان‌بندی
+      // تعیین شرکت مجری زمان‌بندی
       const companyId =
         req.user?.role === Role.USER ? req.user.companyId : req.body.companyId;
 
@@ -75,13 +111,16 @@ export class ScheduleController {
     next: NextFunction,
   ) {
     try {
-      const { runId } = req.params;
+      const { runId, id } = req.params;
+      const targetRunId = runId || id;
 
-      // 🔐 برای USER شناسه شرکت ارسال می‌شود تا مالکیت بررسی گردد
       const companyId =
         req.user?.role === Role.USER ? req.user.companyId : undefined;
 
-      const events = await ScheduleService.getOutageEvents(runId, companyId);
+      const events = await ScheduleService.getOutageEvents(
+        targetRunId,
+        companyId,
+      );
       return res.status(200).json({ success: true, data: events });
     } catch (err) {
       next(err);

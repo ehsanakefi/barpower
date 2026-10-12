@@ -23,31 +23,27 @@ export class TemporalConstraintController {
       next(err);
     }
   }
-
   static async createMany(req: Request, res: Response, next: NextFunction) {
     try {
-      const { datasetName, constraints } = req.body;
+      const { datasetName } = req.body;
+      const constraints = req.body.constraints || req.body.items;
 
-      // 🔐 تعیین شرکت: کاربر عادی شرکت خودش، سوپرادمین از بادی
-      const companyId =
-        req.user?.role === Role.USER ? req.user.companyId : req.body.companyId;
-
-      if (!companyId) {
-        return res.status(400).json({
-          success: false,
-          message: "شناسه شرکت (companyId) الزامی است.",
-        });
+      if (
+        !constraints ||
+        !Array.isArray(constraints) ||
+        constraints.length === 0
+      ) {
+        return res.status(400).json({ error: "لیست محدودیت‌ها خالی است." });
       }
 
-      const result = await TemporalConstraintService.createMany({
+      const result = await TemporalConstraintService.createMany(
         datasetName,
         constraints,
-        companyId,
-      });
-
-      return res.status(201).json({ success: true, data: result });
-    } catch (err) {
-      next(err);
+        req.user?.companyId,
+      );
+      res.status(201).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
     }
   }
 }

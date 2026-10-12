@@ -78,7 +78,7 @@ export class AuthController {
   /**
    * GET /api/auth/me
    */
-  static async me(req: Request, res: Response, next: NextFunction) {
+  static async getMe(req: Request, res: Response, next: NextFunction) {
     try {
       // استفاده از شناسه کاربر موجود در req.user (بر اساس تعریفی که در توکن و میدلور دارید)
       const currentUserId = req.user?.id || req.user?.userId;

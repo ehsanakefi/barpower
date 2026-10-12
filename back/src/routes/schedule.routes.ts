@@ -13,15 +13,25 @@ router.get(
   requireRole(Role.SUPER_ADMIN, Role.USER),
   ScheduleController.getRuns,
 );
+
+// دریافت مشخصات یک اجرا با ID
+router.get(
+  "/runs/:id",
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  ScheduleController.getRunById,
+);
+
 router.post(
   "/run",
   requireRole(Role.SUPER_ADMIN, Role.USER),
   ScheduleController.triggerRun,
 );
+
+// هم /events و هم /outages ساپورت شود
 router.get(
-  "/runs/:id/events",
+  ["/runs/:id/events", "/runs/:id/outages"],
   requireRole(Role.SUPER_ADMIN, Role.USER),
-  ScheduleController.getRunEvents,
+  ScheduleController.getEventsByRunId,
 );
 
 export default router;

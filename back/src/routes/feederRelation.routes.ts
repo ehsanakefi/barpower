@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { FeederRelationController } from "../controllers/feeder-relation.controller";
+import { FeederRelationController } from "../controllers/feederRelation.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { requireRole } from "../middleware/role.middleware";
 import { Role } from "@prisma/client";
@@ -16,7 +16,7 @@ router.get(
 router.post(
   "/batch",
   requireRole(Role.SUPER_ADMIN, Role.USER),
-  FeederRelationController.createBatch,
+  FeederRelationController.createMany,
 );
 
 export default router;

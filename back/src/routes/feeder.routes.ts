@@ -1,40 +1,31 @@
 import { Router } from "express";
 import { FeederController } from "../controllers/feeder.controller";
-import { validate } from "../middleware/validation.middleware";
-import { createFeederSchema } from "../validation/feeder.schema";
-import { authMiddleware } from "../middleware/auth.middleware";
 import { requireRole } from "../middleware/role.middleware";
 import { Role } from "@prisma/client";
 
 const router = Router();
 
-// همه عملیات فیدرها نیازمند لاگین هستند
-router.use(authMiddleware);
-
-// هم سوپرادمین و هم کاربر اداره برق می‌توانند ببینند و بسازند
-// (کاربر در محدوده شرکت خودش، سوپرادمین در کل سیستم)
+// ۱. دریافت همه فیدرها (هر دو نقش)
 router.get(
   "/",
   requireRole(Role.SUPER_ADMIN, Role.USER),
   FeederController.getAll,
 );
+
+// ۲. دریافت تکی فیدر (هر دو نقش)
 router.get(
   "/:id",
   requireRole(Role.SUPER_ADMIN, Role.USER),
   FeederController.getById,
 );
 
-router.post(
-  "/",
-  requireRole(Role.SUPER_ADMIN, Role.USER),
-  validate(createFeederSchema),
-  FeederController.create,
-);
+// ۳. ایجاد فیدر (فقط SUPER_ADMIN - برای کاربر عادی ۴۰۳ می‌دهد)
+router.post("/", requireRole(Role.SUPER_ADMIN), FeederController.create);
 
-router.delete(
-  "/:id",
-  requireRole(Role.SUPER_ADMIN, Role.USER),
-  FeederController.delete,
-);
+// ۴. ویرایش فیدر (فقط SUPER_ADMIN)
+router.put("/:id", requireRole(Role.SUPER_ADMIN), FeederController.update);
+
+// ۵. حذف فیدر (فقط SUPER_ADMIN)
+router.delete("/:id", requireRole(Role.SUPER_ADMIN), FeederController.delete);
 
 export default router;

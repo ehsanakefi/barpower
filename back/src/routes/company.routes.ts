@@ -15,5 +15,16 @@ router.get("/:id", CompanyController.getById);
 router.post("/", CompanyController.create);
 router.put("/:id", CompanyController.update);
 router.delete("/:id", CompanyController.delete);
+router.patch(
+  "/:id/disable",
+  requireRole(Role.SUPER_ADMIN),
+  CompanyController.disable,
+);
+
+router.patch(
+  "/:id/enable",
+  requireRole(Role.SUPER_ADMIN),
+  CompanyController.enable,
+);
 
 export default router;
