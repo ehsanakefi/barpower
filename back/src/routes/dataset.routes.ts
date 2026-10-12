@@ -1,24 +1,33 @@
 import { Router } from "express";
 import { DatasetController } from "../controllers/dataset.controller";
-import { validate } from "../middleware/validation.middleware";
-import { uploadLoadRecordsSchema } from "../validation/loadRecord.schema";
+import { authMiddleware } from "../middleware/auth.middleware";
+import { requireRole } from "../middleware/role.middleware";
+import { Role } from "@prisma/client";
 
 const router = Router();
 
-// دریافت لیست مجموعه‌ها
-router.get("/", DatasetController.getAll);
+router.use(authMiddleware);
 
-// ثبت رکوردهای بار مصرفی (H1 تا H24) اکسل با اعتبارسنجی خودکار
-router.post(
-  "/load-records",
-  validate(uploadLoadRecordsSchema),
-  DatasetController.uploadLoadRecords,
+// مشاهده و بارگذاری برای هر دو نقش مجاز است
+router.get(
+  "/",
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  DatasetController.getAll,
 );
-
-// مشاهده رکوردهای بار
-router.get("/load-records", DatasetController.getRecords);
-
-// حذف مجموعه
-router.delete("/:id", DatasetController.deleteDataset);
+router.get(
+  "/load-records",
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  DatasetController.getLoadRecords,
+);
+router.post(
+  "/upload",
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  DatasetController.upload,
+);
+router.delete(
+  "/:id",
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  DatasetController.delete,
+);
 
 export default router;

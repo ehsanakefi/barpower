@@ -5,11 +5,11 @@ import { Role } from "@prisma/client";
 export class AuthController {
   /**
    * POST /api/auth/register
-   * ثبت‌نام کاربر عادی (نقش به‌صورت پیش‌فرض USER قرار می‌گیرد)
+   * ایجاد کاربر جدید توسط SUPER_ADMIN
    */
   static async register(req: Request, res: Response, next: NextFunction) {
     try {
-      const { username, password, email, fullName } = req.body;
+      const { username, password, email, fullName, role, companyId } = req.body;
 
       if (!username || !password) {
         return res.status(400).json({
@@ -18,30 +18,39 @@ export class AuthController {
         });
       }
 
-      // اجبار نقش به USER جهت جلوگیری از تزریق ADMIN توسط کاربر عادی
+      const assignedRole =
+        role === Role.SUPER_ADMIN ? Role.SUPER_ADMIN : Role.USER;
+
+      // 🔐 برای نقش USER، مشخص بودن اداره برق (شرکت) الزامی است
+      if (assignedRole === Role.USER && !companyId) {
+        return res.status(400).json({
+          success: false,
+          message: "برای کاربران عملیاتی، شناسه شرکت (companyId) الزامی است.",
+        });
+      }
+
       const result = await AuthService.register({
         username,
         password,
         email,
         fullName,
-        role: Role.USER,
+        role: assignedRole,
+        companyId: assignedRole === Role.USER ? companyId : null,
       });
 
       return res.status(201).json({
         success: true,
-        message: "ثبت‌نام با موفقیت انجام شد.",
+        message: "کاربر با موفقیت ثبت شد.",
         data: result,
       });
-    } catch (error: any) {
-      return res.status(error?.status || 500).json({
-        success: false,
-        message: error?.message || "خطای سرور در ثبت‌نام",
-      });
+    } catch (error) {
+      next(error);
     }
   }
 
   /**
    * POST /api/auth/login
+   * خروجی شامل توکن حاوی companyId و role خواهد بود
    */
   static async login(req: Request, res: Response, next: NextFunction) {
     try {
@@ -56,16 +65,13 @@ export class AuthController {
 
       const result = await AuthService.login({ username, password });
 
-      return res.json({
+      return res.status(200).json({
         success: true,
         message: "ورود موفقیت‌آمیز بود.",
         data: result,
       });
-    } catch (error: any) {
-      return res.status(error?.status || 401).json({
-        success: false,
-        message: error?.message || "نام کاربری یا رمز عبور اشتباه است.",
-      });
+    } catch (error) {
+      next(error);
     }
   }
 
@@ -74,17 +80,24 @@ export class AuthController {
    */
   static async me(req: Request, res: Response, next: NextFunction) {
     try {
-      const user = await AuthService.getMe(req.user!.userId);
+      // استفاده از شناسه کاربر موجود در req.user (بر اساس تعریفی که در توکن و میدلور دارید)
+      const currentUserId = req.user?.id || req.user?.userId;
 
-      return res.json({
+      if (!currentUserId) {
+        return res.status(401).json({
+          success: false,
+          message: "کاربر احراز هویت نشده است.",
+        });
+      }
+
+      const user = await AuthService.getMe(currentUserId);
+
+      return res.status(200).json({
         success: true,
         data: user,
       });
-    } catch (error: any) {
-      return res.status(error?.status || 404).json({
-        success: false,
-        message: error?.message || "کاربر یافت نشد.",
-      });
+    } catch (error) {
+      next(error);
     }
   }
 }

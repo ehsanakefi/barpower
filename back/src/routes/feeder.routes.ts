@@ -2,33 +2,38 @@ import { Router } from "express";
 import { FeederController } from "../controllers/feeder.controller";
 import { validate } from "../middleware/validation.middleware";
 import { createFeederSchema } from "../validation/feeder.schema";
+import { authMiddleware } from "../middleware/auth.middleware";
 import { requireRole } from "../middleware/role.middleware";
 import { Role } from "@prisma/client";
 
 const router = Router();
 
-// لیست کامل فیدرها
-router.get("/", requireRole(Role.ADMIN, Role.USER), FeederController.getAll);
+// همه عملیات فیدرها نیازمند لاگین هستند
+router.use(authMiddleware);
 
-// اطلاعات یک فیدر
+// هم سوپرادمین و هم کاربر اداره برق می‌توانند ببینند و بسازند
+// (کاربر در محدوده شرکت خودش، سوپرادمین در کل سیستم)
+router.get(
+  "/",
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  FeederController.getAll,
+);
 router.get(
   "/:id",
-  requireRole(Role.ADMIN, Role.USER),
+  requireRole(Role.SUPER_ADMIN, Role.USER),
   FeederController.getById,
 );
 
-// ایجاد فیدر (همراه با میدلور اعتبارسنجی)
 router.post(
   "/",
-  requireRole(Role.ADMIN, Role.USER),
+  requireRole(Role.SUPER_ADMIN, Role.USER),
   validate(createFeederSchema),
   FeederController.create,
 );
-// router.put("/:id", requireRole(Role.ADMIN, Role.USER), FeederController.update);
-// حذف فیدر
+
 router.delete(
   "/:id",
-  requireRole(Role.ADMIN, Role.USER),
+  requireRole(Role.SUPER_ADMIN, Role.USER),
   FeederController.delete,
 );
 

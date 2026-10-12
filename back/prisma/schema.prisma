@@ -1,5 +1,5 @@
 datasource db {
-  provider = "postgresql" // اگر از SQLite استفاده می‌کنید به "sqlite" تغییر دهید
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -12,8 +12,8 @@ generator client {
 // ==========================================
 
 enum Role {
-  ADMIN
-  USER
+  SUPER_ADMIN // ادمین کل سامانه (مدیریت شرکت‌ها)
+  USER        // کاربر/اپراتور شرکت توزیع برق
 }
 
 enum DatasetType {
@@ -37,13 +37,37 @@ enum RunStatus {
 }
 
 // ==========================================
-// ۲. کاربران و سطوح دسترسی (Users & Roles)
+// ۲. شرکت‌های توزیع برق (Companies)
+// ==========================================
+model Company {
+  id          String   @id @default(cuid())
+  code        String   @unique // مثلاً "EPDC_HAMEDAN"
+  name        String   // شرکت توزیع نیروی برق استان همدان
+  province    String?  // استان
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users        User[]
+  feeders      Feeder[]
+  datasets     Dataset[]
+  scheduleRuns ScheduleRun[]
+
+  @@map("companies")
+}
+
+// ==========================================
+// ۳. کاربران (Users)
 // ==========================================
 model User {
   id           String        @id @default(cuid())
-  email        String?       @unique
+  companyId    String?       // برای SUPER_ADMIN می‌تواند null باشد، برای USER اجباری است
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  email        String?
   username     String        @unique
-  passwordHash String        // هش رمز عبور (bcrypt یا argon2)
+  passwordHash String
   fullName     String?
   role         Role          @default(USER)
   isActive     Boolean       @default(true)
@@ -51,85 +75,90 @@ model User {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  // سابقه عملیات کاربر (اختیاری جهت Audit Log)
   datasets     Dataset[]
   scheduleRuns ScheduleRun[]
 
+  @@index([companyId])
   @@map("users")
 }
 
 // ==========================================
-// ۳. فیدرها (Feeders)
+// ۴. فیدرها (Feeders)
 // ==========================================
 model Feeder {
   id             String   @id @default(cuid())
-  code           String   @unique // مثلاً F-101
-  name           String   // نام فیدر
-  substationName String?  // نام پست بالادست
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  code           String   // مثلاً F-101
+  name           String
+  substationName String?
 
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  // روابط با سایر جداول
   temporalConstraints TemporalConstraint[]
   baseRelations       FeederRelation[]     @relation("BaseFeederRelation")
   targetRelations     FeederRelation[]     @relation("TargetFeederRelation")
   outageEvents        OutageEvent[]
 
+  // کد فیدر در هر شرکت توزیع یکتاست، نه در کل کشور
+  @@unique([companyId, code])
+  @@index([companyId])
   @@map("feeders")
 }
 
 // ==========================================
-// ۴. مجموعه‌داده‌ها و فایل‌های آپلود شده (Datasets)
+// ۵. مجموعه‌داده‌ها (Datasets)
 // ==========================================
 model Dataset {
   id          String      @id @default(cuid())
-  name        String      // نام فایل یا نام دلخواه
-  type        DatasetType // نوع مجموعه
-  fileName    String?     // نام اصلی فایل اکسل
+  companyId   String
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name        String
+  type        DatasetType
+  fileName    String?
   recordCount Int         @default(0)
   version     Int         @default(1)
 
-  // کاربری که فایل یا مجموعه را ثبت کرده
   userId      String?
   user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  // رکوردها و وابستگی‌ها
   loadRecords         LoadRecord[]
   temporalConstraints TemporalConstraint[]
   feederRelations     FeederRelation[]
 
-  // سابقه استفاده در اجراهای الگوریتم
   loadRuns      ScheduleRun[] @relation("LoadDatasetRuns")
   temporalRuns  ScheduleRun[] @relation("TemporalDatasetRuns")
   relationRuns  ScheduleRun[] @relation("RelationDatasetRuns")
 
+  @@index([companyId])
   @@map("datasets")
 }
 
 // ==========================================
-// ۵. رکوردهای بار مصرفی ساعتی (Load Records)
+// ۶. رکوردهای بار ساعتی (Load Records)
 // ==========================================
 model LoadRecord {
   id                String   @id @default(cuid())
   datasetId         String
   dataset           Dataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
 
-  operatorName      String?  // نام اپراتور / شرکت توزیع
-  stationType       String?  // نوع ایستگاه
-  stationPgdsCode   String   // کد دیسپاچینگ ایستگاه
-  equipmentType     String?  // نوع تجهیز
-  equipment         String?  // نام تجهیز
-  equipmentPgdsCode String?  // کد دیسپاچینگ تجهیز
-  energyType        String?  // نوع انرژی
+  operatorName      String?
+  stationType       String?
+  stationPgdsCode   String
+  equipmentType     String?
+  equipment         String?
+  equipmentPgdsCode String?
+  energyType        String?
 
-  date              String   // تاریخ (شمسی یا میلادی استاندارد)
-  total             Float    @default(0) // جمع مصرف روز
+  date              String
+  total             Float    @default(0)
 
-  // بارهای مصرفی ۲۴ ساعت شبانه‌روز (مگاوات)
   h1  Float?
   h2  Float?
   h3  Float?
@@ -164,7 +193,7 @@ model LoadRecord {
 }
 
 // ==========================================
-// ۶. محدودیت‌های زمانی فیدرها (Temporal Constraints)
+// ۷. محدودیت‌های زمانی (Temporal Constraints)
 // ==========================================
 model TemporalConstraint {
   id             String   @id @default(cuid())
@@ -174,8 +203,8 @@ model TemporalConstraint {
   feederId       String
   feeder         Feeder   @relation(fields: [feederId], references: [id], onDelete: Cascade)
 
-  date           String   // تاریخ مد نظر
-  constraintCode Int      // کدهای محدودیت (۰ تا ۶)
+  date           String
+  constraintCode Int
 
   createdAt      DateTime @default(now())
 
@@ -185,7 +214,7 @@ model TemporalConstraint {
 }
 
 // ==========================================
-// ۷. روابط بین فیدرها (Feeder Relations)
+// ۸. روابط فیدرها (Feeder Relations)
 // ==========================================
 model FeederRelation {
   id              String       @id @default(cuid())
@@ -207,19 +236,20 @@ model FeederRelation {
 }
 
 // ==========================================
-// ۸. درخواست‌های اجرای محاسبه هفتگی (Schedule Runs)
+// ۹. زمان‌بندی‌ها (Schedule Runs)
 // ==========================================
 model ScheduleRun {
   id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
   status        RunStatus @default(READY)
-  weekStartDate String    // تاریخ شروع هفته (مثلاً ۱۴۰۳/۰۶/۱۰)
+  weekStartDate String
   errorMessage  String?
 
-  // کاربری که دستور اجرا را صادر کرده
   userId        String?
   user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  // شناسه‌های مجموعه‌های ورودی که برای این محاسبه استفاده شده‌اند
   loadDatasetId     String?
   loadDataset       Dataset? @relation("LoadDatasetRuns", fields: [loadDatasetId], references: [id], onDelete: SetNull)
 
@@ -229,17 +259,17 @@ model ScheduleRun {
   relationsDatasetId String?
   relationsDataset   Dataset? @relation("RelationDatasetRuns", fields: [relationsDatasetId], references: [id], onDelete: SetNull)
 
-  // رویدادهای خاموشی تولید شده حاصل از این اجرا
   outageEvents  OutageEvent[]
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  @@index([companyId])
   @@map("schedule_runs")
 }
 
 // ==========================================
-// ۹. رویدادهای تقویم خاموشی نهایی (Outage Events)
+// ۱۰. رویدادهای خاموشی (Outage Events)
 // ==========================================
 model OutageEvent {
   id        String      @id @default(cuid())
@@ -249,10 +279,10 @@ model OutageEvent {
   feederId  String
   feeder    Feeder      @relation(fields: [feederId], references: [id], onDelete: Cascade)
 
-  date      String      // تاریخ خاموشی (مثلاً ۱۴۰۳/۰۶/۱۰)
-  weekday   String      // نام روز هفته (شنبه، یکشنبه، ...)
-  startTime String      // ساعت شروع (مثلاً "12:00")
-  endTime   String      // ساعت پایان (مثلاً "14:00")
+  date      String
+  weekday   String
+  startTime String
+  endTime   String
 
   createdAt DateTime    @default(now())
 

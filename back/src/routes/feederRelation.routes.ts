@@ -1,18 +1,22 @@
 import { Router } from "express";
-import { FeederRelationController } from "../controllers/feederRelation.controller";
-import { validate } from "../middleware/validation.middleware";
-import { createFeederRelationsSchema } from "../validation/feederRelation.schema";
+import { FeederRelationController } from "../controllers/feeder-relation.controller";
+import { authMiddleware } from "../middleware/auth.middleware";
+import { requireRole } from "../middleware/role.middleware";
+import { Role } from "@prisma/client";
 
 const router = Router();
 
-// لیست روابط
-router.get("/", FeederRelationController.getAll);
+router.use(authMiddleware);
 
-// ثبت روابط هم‌زمان یا غیرهم‌زمان فیدرها
+router.get(
+  "/",
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  FeederRelationController.getAll,
+);
 router.post(
   "/batch",
-  validate(createFeederRelationsSchema),
-  FeederRelationController.createMany,
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  FeederRelationController.createBatch,
 );
 
 export default router;

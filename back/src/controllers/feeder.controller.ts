@@ -1,52 +1,77 @@
+// src/controllers/feeder.controller.ts
 import { Request, Response, NextFunction } from "express";
 import { FeederService } from "../services/feeder.service";
+import { Role } from "@prisma/client";
 
 export class FeederController {
+  // دریافت لیست فیدرها
   static async getAll(req: Request, res: Response, next: NextFunction) {
     try {
-      const feeders = await FeederService.getAll();
-      return res.json({ success: true, data: feeders });
-    } catch (err) {
-      next(err);
+      const companyId =
+        req.user?.role === Role.USER
+          ? req.user.companyId
+          : (req.query.companyId as string | undefined);
+
+      const feeders = await FeederService.getAll(companyId);
+      return res.status(200).json({ success: true, data: feeders });
+    } catch (error) {
+      next(error);
     }
   }
 
+  // دریافت یک فیدر خاص
   static async getById(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const feeder = await FeederService.getById(id);
-      if (!feeder) {
-        return res
-          .status(404)
-          .json({ success: false, message: "فیدر مورد نظر یافت نشد" });
-      }
-      return res.json({ success: true, data: feeder });
-    } catch (err) {
-      next(err);
+      const companyId =
+        req.user?.role === Role.USER ? req.user.companyId : undefined;
+
+      const feeder = await FeederService.getById(id, companyId);
+      return res.status(200).json({ success: true, data: feeder });
+    } catch (error) {
+      next(error);
     }
   }
 
+  // ایجاد فیدر جدید
   static async create(req: Request, res: Response, next: NextFunction) {
     try {
-      // داده‌ها قبلاً در میدلور validate پالایش و تایید شده‌اند
-      const feeder = await FeederService.create(req.body);
-      return res.status(201).json({
-        success: true,
-        message: "فیدر با موفقیت ثبت شد",
-        data: feeder,
+      // اگر کاربر عادی است، companyId حتما مال خودش است؛
+      // اگر سوپرادمین است، باید مشخص کند فیدر برای کدام شرکت ساخته می‌شود
+      const targetCompanyId =
+        req.user?.role === Role.USER ? req.user.companyId : req.body.companyId;
+
+      if (!targetCompanyId) {
+        return res.status(400).json({
+          success: false,
+          message: "شناسه شرکت (companyId) الزامی است.",
+        });
+      }
+
+      const feeder = await FeederService.create({
+        ...req.body,
+        companyId: targetCompanyId,
       });
-    } catch (err) {
-      next(err); // ارسال مستقیم خطا به میدلور مرکزی در app.ts
+
+      return res.status(201).json({ success: true, data: feeder });
+    } catch (error) {
+      next(error);
     }
   }
 
+  // حذف فیدر
   static async delete(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      await FeederService.delete(id);
-      return res.json({ success: true, message: "فیدر با موفقیت حذف شد" });
-    } catch (err) {
-      next(err);
+      const companyId =
+        req.user?.role === Role.USER ? req.user.companyId : undefined;
+
+      await FeederService.delete(id, companyId);
+      return res
+        .status(200)
+        .json({ success: true, message: "فیدر با موفقیت حذف شد." });
+    } catch (error) {
+      next(error);
     }
   }
 }

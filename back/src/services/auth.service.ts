@@ -16,10 +16,17 @@ const SALT_ROUNDS = 10;
 
 export class AuthService {
   /**
-   * ثبت‌نام کاربر جدید
+   * ثبت‌نام کاربر جدید با پشتیبانی از Multi-Tenancy
    */
   static async register(input: RegisterDTO): Promise<AuthResponse> {
-    const { username, password, email, fullName, role = Role.USER } = input;
+    const {
+      username,
+      password,
+      email,
+      fullName,
+      role = Role.USER,
+      companyId,
+    } = input;
 
     // بررسی وجود نام‌کاربری
     const existingUsername = await prisma.user.findUnique({
@@ -43,6 +50,26 @@ export class AuthService {
       }
     }
 
+    // کاربر عادی (USER) الزماً باید متعلق به یک اداره برق/شرکت باشد
+    if (role === Role.USER && !companyId) {
+      throw Object.assign(
+        new Error("تعیین شرکت (companyId) برای کاربران عادی الزامی است."),
+        { status: 400 },
+      );
+    }
+
+    // بررسی وجود شرکت در دیتابیس (در صورتی که ارسال شده باشد)
+    if (companyId) {
+      const company = await prisma.company.findUnique({
+        where: { id: companyId },
+      });
+      if (!company) {
+        throw Object.assign(new Error("شرکت مورد نظر یافت نشد."), {
+          status: 404,
+        });
+      }
+    }
+
     // هش پسورد
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
@@ -54,14 +81,21 @@ export class AuthService {
         email,
         fullName,
         role,
+        companyId: companyId || null,
+      },
+      include: {
+        company: {
+          select: { id: true, name: true, code: true },
+        },
       },
     });
 
-    // صدور توکن
+    // صدور توکن همراه با companyId
     const token = this.generateToken({
       userId: user.id,
       username: user.username,
       role: user.role,
+      companyId: user.companyId ?? undefined,
     });
 
     return {
@@ -72,19 +106,26 @@ export class AuthService {
         fullName: user.fullName,
         role: user.role,
         isActive: user.isActive,
+        companyId: user.companyId,
+        company: user.company,
       },
       token,
     };
   }
 
   /**
-   * ورود کاربر و صدور JWT
+   * ورود کاربر و صدور JWT شامل companyId
    */
   static async login(input: LoginDTO): Promise<AuthResponse> {
     const { username, password } = input;
 
     const user = await prisma.user.findUnique({
       where: { username },
+      include: {
+        company: {
+          select: { id: true, name: true, code: true },
+        },
+      },
     });
 
     if (!user) {
@@ -106,10 +147,12 @@ export class AuthService {
       });
     }
 
+    // صدور توکن حاوی companyId
     const token = this.generateToken({
       userId: user.id,
       username: user.username,
       role: user.role,
+      companyId: user.companyId ?? undefined,
     });
 
     return {
@@ -120,13 +163,15 @@ export class AuthService {
         fullName: user.fullName,
         role: user.role,
         isActive: user.isActive,
+        companyId: user.companyId,
+        company: user.company,
       },
       token,
     };
   }
 
   /**
-   * دریافت پروفایل کاربر جاری
+   * دریافت مشخصات کاربر جاری همراه با اطلاعات شرکت
    */
   static async getMe(userId: string) {
     const user = await prisma.user.findUnique({
@@ -139,6 +184,14 @@ export class AuthService {
         role: true,
         isActive: true,
         createdAt: true,
+        companyId: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
       },
     });
 
@@ -150,7 +203,7 @@ export class AuthService {
   }
 
   /**
-   * تولید JWT Token
+   * تولید JWT Token (پشتیبانی از companyId در تایپ و پی‌لود)
    */
   static generateToken(payload: AuthPayload): string {
     return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });

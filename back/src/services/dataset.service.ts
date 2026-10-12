@@ -2,28 +2,41 @@ import { prisma } from "../database/prisma";
 import { DatasetType, Prisma } from "@prisma/client";
 
 export class DatasetService {
-  static async getAll(type?: DatasetType) {
+  /**
+   * دریافت لیست دیتاست‌ها با فیلتر شرکت و نوع
+   */
+  static async getAll(options?: { type?: DatasetType; companyId?: string }) {
+    const { type, companyId } = options || {};
+
     return prisma.dataset.findMany({
-      where: type ? { type } : undefined,
+      where: {
+        ...(type ? { type } : {}),
+        ...(companyId ? { companyId } : {}),
+      },
       orderBy: { createdAt: "desc" },
     });
   }
 
+  /**
+   * ذخیره دیتاست و رکوردهای بار مصرفی با انتساب به شرکت
+   */
   static async saveLoadDataset(input: {
     name: string;
+    companyId: string;
     fileName?: string | null;
     records: any[];
   }) {
-    const { name, fileName, records } = input;
+    const { name, companyId, fileName, records } = input;
 
     return prisma.$transaction(async (tx) => {
-      // ۱. ساخت مجموعه داده
+      // ۱. ساخت مجموعه داده متصل به شرکت مشخص
       const dataset = await tx.dataset.create({
         data: {
           name,
           type: "LOAD",
           fileName: fileName ?? null,
           recordCount: records.length,
+          companyId,
         },
       });
 
@@ -67,7 +80,7 @@ export class DatasetService {
         }),
       );
 
-      // درج دسته‌ای (Bulk Insert) در پستگرس
+      // درج دسته‌ای (Bulk Insert) در دیتابیس
       await tx.loadRecord.createMany({
         data: loadRecordsData,
       });
@@ -76,18 +89,51 @@ export class DatasetService {
     });
   }
 
-  static async getLoadRecords(filters: { datasetId?: string; date?: string }) {
+  /**
+   * دریافت رکوردهای بار یک دیتاست با بررسی تعلق به شرکت
+   */
+  static async getLoadRecords(filters: {
+    datasetId?: string;
+    date?: string;
+    companyId?: string;
+  }) {
+    const { datasetId, date, companyId } = filters;
+
     return prisma.loadRecord.findMany({
       where: {
-        datasetId: filters.datasetId,
-        date: filters.date,
+        ...(datasetId ? { datasetId } : {}),
+        ...(date ? { date } : {}),
+        ...(companyId
+          ? {
+              dataset: {
+                companyId,
+              },
+            }
+          : {}),
       },
       orderBy: [{ date: "asc" }, { stationPgdsCode: "asc" }],
     });
   }
 
-  static async deleteDataset(id: string) {
-    // به دلیل وجود onDelete: Cascade در Schema، با حذف دیتاست تمام رکوردهای وابسته پاک می‌شوند
+  /**
+   * حذف دیتاست با تضمین مالکیت شرکت (جلوگیری از IDOR)
+   */
+  static async deleteDataset(id: string, companyId?: string) {
+    // ابتدا وجود دیتاست و تعلق آن به شرکت بررسی می‌شود
+    const dataset = await prisma.dataset.findFirst({
+      where: {
+        id,
+        ...(companyId ? { companyId } : {}),
+      },
+    });
+
+    if (!dataset) {
+      throw Object.assign(
+        new Error("مجموعه داده یافت نشد یا شما دسترسی به حذف آن ندارید."),
+        { status: 404 },
+      );
+    }
+
     return prisma.dataset.delete({
       where: { id },
     });

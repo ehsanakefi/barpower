@@ -1,12 +1,19 @@
 import { Request, Response, NextFunction } from "express";
 import { DatasetService } from "../services/dataset.service";
-import { DatasetType } from "@prisma/client";
+import { DatasetType, Role } from "@prisma/client";
 
 export class DatasetController {
   static async getAll(req: Request, res: Response, next: NextFunction) {
     try {
       const type = req.query.type as DatasetType | undefined;
-      const datasets = await DatasetService.getAll(type);
+
+      // 🔐 تفکیک دسترسی بر اساس نقش
+      const companyId =
+        req.user?.role === Role.USER
+          ? req.user.companyId
+          : (req.query.companyId as string | undefined);
+
+      const datasets = await DatasetService.getAll({ type, companyId });
       return res.json({ success: true, data: datasets });
     } catch (err) {
       next(err);
@@ -19,8 +26,23 @@ export class DatasetController {
     next: NextFunction,
   ) {
     try {
-      // ✅ داده‌ها قبلاً در میدلور validate پالایش و تایید شده‌اند، نیازی به parse مجدد نیست
-      const dataset = await DatasetService.saveLoadDataset(req.body);
+      // 🔐 تعیین شرکت: کاربر عادی شرکت خودش، سوپرادمین از بادی
+      const companyId =
+        req.user?.role === Role.USER ? req.user.companyId : req.body.companyId;
+
+      if (!companyId) {
+        return res.status(400).json({
+          success: false,
+          message: "شناسه شرکت (companyId) الزامی است.",
+        });
+      }
+
+      // ارسال companyId به سرویس همراه با داده‌ها
+      const dataset = await DatasetService.saveLoadDataset({
+        ...req.body,
+        companyId,
+      });
+
       return res.status(201).json({
         success: true,
         message: "مجموعه داده بار با موفقیت ذخیره شد",
@@ -35,7 +57,18 @@ export class DatasetController {
     try {
       const datasetId = req.query.datasetId as string | undefined;
       const date = req.query.date as string | undefined;
-      const records = await DatasetService.getLoadRecords({ datasetId, date });
+
+      // 🔐 فیلتر رکوردها فقط در محدوده همان شرکت
+      const companyId =
+        req.user?.role === Role.USER
+          ? req.user.companyId
+          : (req.query.companyId as string | undefined);
+
+      const records = await DatasetService.getLoadRecords({
+        datasetId,
+        date,
+        companyId,
+      });
       return res.json({ success: true, data: records });
     } catch (err) {
       next(err);
@@ -45,7 +78,12 @@ export class DatasetController {
   static async deleteDataset(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      await DatasetService.deleteDataset(id);
+
+      // 🔐 برای USER شناسه شرکت اجباری پاس داده می‌شود تا مطمئن شویم مال خودش را پاک می‌کند
+      const companyId =
+        req.user?.role === Role.USER ? req.user.companyId : undefined;
+
+      await DatasetService.deleteDataset(id, companyId);
       return res.json({
         success: true,
         message: "مجموعه داده و رکوردهای مرتبط حذف شدند",

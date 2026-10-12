@@ -1,24 +1,27 @@
 import { Router } from "express";
 import { ScheduleController } from "../controllers/schedule.controller";
-import { validate } from "../middleware/validation.middleware";
-import { triggerScheduleSchema } from "../validation/schedule.schema";
+import { authMiddleware } from "../middleware/auth.middleware";
+import { requireRole } from "../middleware/role.middleware";
+import { Role } from "@prisma/client";
 
 const router = Router();
 
-// لیست تمام اجراها
-router.get("/runs", ScheduleController.getRuns);
+router.use(authMiddleware);
 
-// آخرین اجرا برای داشبورد
-router.get("/latest", ScheduleController.getLatestRun);
-
-// اجرای محاسبه با اعتبارسنجی پارامترهای شروع
+router.get(
+  "/runs",
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  ScheduleController.getRuns,
+);
 router.post(
   "/run",
-  validate(triggerScheduleSchema),
+  requireRole(Role.SUPER_ADMIN, Role.USER),
   ScheduleController.triggerRun,
 );
-
-// واکشی رویدادهای خاموشی یک اجرا (Outage Events) برای صفحه تقویم
-router.get("/runs/:runId/events", ScheduleController.getEventsByRunId);
+router.get(
+  "/runs/:id/events",
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  ScheduleController.getRunEvents,
+);
 
 export default router;

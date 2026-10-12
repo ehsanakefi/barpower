@@ -1,18 +1,22 @@
 import { Router } from "express";
-import { TemporalConstraintController } from "../controllers/temporalConstraint.controller";
-import { validate } from "../middleware/validation.middleware";
-import { createTemporalConstraintsSchema } from "../validation/temporalConstraint.schema";
+import { TemporalConstraintController } from "../controllers/temporal-constraint.controller";
+import { authMiddleware } from "../middleware/auth.middleware";
+import { requireRole } from "../middleware/role.middleware";
+import { Role } from "@prisma/client";
 
 const router = Router();
 
-// لیست محدودیت‌ها
-router.get("/", TemporalConstraintController.getAll);
+router.use(authMiddleware);
 
-// ثبت دسته‌ای محدودیت‌های زمانی فیدرها
+router.get(
+  "/",
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  TemporalConstraintController.getAll,
+);
 router.post(
   "/batch",
-  validate(createTemporalConstraintsSchema),
-  TemporalConstraintController.createMany,
+  requireRole(Role.SUPER_ADMIN, Role.USER),
+  TemporalConstraintController.createBatch,
 );
 
 export default router;

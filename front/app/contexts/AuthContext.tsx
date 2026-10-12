@@ -1,9 +1,15 @@
 "use client";
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
-import api from '../services/api';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { useRouter } from "next/navigation";
+import api from "../services/api";
 
-export type UserRole = 'ADMIN' | 'EDITOR'| 'VIEWER';
+export type UserRole = "ADMIN" | "USER";
 
 interface User {
   id: string;
@@ -28,8 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Check for existing session on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
+    const storedUser = localStorage.getItem("user");
+    const token = localStorage.getItem("token");
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
@@ -39,41 +45,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (
+    username: string,
+    password: string,
+  ): Promise<boolean> => {
     setIsLoading(true);
-    
+
     try {
       const response = await api.login(username, password);
-      
+
       if (response.success && response?.user) {
         const userData = response.user;
         setUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
-        
+        localStorage.setItem("user", JSON.stringify(userData));
+
         // Redirect based on role
-        if (userData.role === 'ADMIN') {
-          router.push('/admin');
+        if (userData.role === "ADMIN") {
+          router.push("/admin");
         } else {
-          router.push('/user');
+          router.push("/user");
         }
-        
+
         setIsLoading(false);
         return true;
       }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error("Login error:", error);
     }
-    
+
     setIsLoading(false);
     return false;
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
     api.logout();
-    router.push('/login');
+    router.push("/login");
   };
 
   return (
@@ -86,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }
