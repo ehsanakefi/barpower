@@ -25,6 +25,8 @@ export default function LoginPage() {
     }
 
     const success = await login(username, password);
+    console.log(success);
+
     if (!success) {
       setError("نام کاربری یا رمز عبور اشتباه است");
     }

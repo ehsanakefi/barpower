@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://192.168.80.30:3001";
+  process.env.NEXT_PUBLIC_API_URL || "http://192.168.80.30:5000";
 export interface Pagination {
   page: number;
   limit: number;

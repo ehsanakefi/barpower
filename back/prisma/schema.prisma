@@ -1,30 +1,219 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+model Company {
+  id           String        @id @default(cuid())
+  code         String        @unique
+  name         String
+  province     String?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  datasets     Dataset[]
+  feeders      Feeder[]
+  scheduleRuns ScheduleRun[]
+  users        User[]
+
+  @@map("companies")
 }
 
-// ==========================================
-// ۱. اینام‌ها (Enums)
-// ==========================================
+model User {
+  id           String        @id @default(cuid())
+  email        String?
+  username     String        @unique
+  passwordHash String
+  fullName     String?
+  role         Role          @default(USER)
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  companyId    String?
+  datasets     Dataset[]
+  scheduleRuns ScheduleRun[]
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("users")
+}
+
+model Feeder {
+  id                  String               @id @default(cuid())
+  code                String
+  name                String
+  substationName      String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  companyId           String
+  baseRelations       FeederRelation[]     @relation("BaseFeederRelation")
+  targetRelations     FeederRelation[]     @relation("TargetFeederRelation")
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  outageEvents        OutageEvent[]
+  temporalConstraints TemporalConstraint[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("feeders")
+}
+
+model Dataset {
+  id                  String               @id @default(cuid())
+  name                String
+  type                DatasetType
+  fileName            String?
+  recordCount         Int                  @default(0)
+  version             Int                  @default(1)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  userId              String?
+  companyId           String
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user                User?                @relation(fields: [userId], references: [id])
+  feederRelations     FeederRelation[]
+  loadRecords         LoadRecord[]
+  loadRuns            ScheduleRun[]        @relation("LoadDatasetRuns")
+  relationRuns        ScheduleRun[]        @relation("RelationDatasetRuns")
+  temporalRuns        ScheduleRun[]        @relation("TemporalDatasetRuns")
+  temporalConstraints TemporalConstraint[]
+
+  @@index([companyId])
+  @@map("datasets")
+}
+
+model LoadRecord {
+  id                String   @id @default(cuid())
+  datasetId         String
+  operatorName      String?
+  stationType       String?
+  stationPgdsCode   String
+  equipmentType     String?
+  equipment         String?
+  equipmentPgdsCode String?
+  energyType        String?
+  date              String
+  total             Float    @default(0)
+  h1                Float?
+  h2                Float?
+  h3                Float?
+  h4                Float?
+  h5                Float?
+  h6                Float?
+  h7                Float?
+  h8                Float?
+  h9                Float?
+  h10               Float?
+  h11               Float?
+  h12               Float?
+  h13               Float?
+  h14               Float?
+  h15               Float?
+  h16               Float?
+  h17               Float?
+  h18               Float?
+  h19               Float?
+  h20               Float?
+  h21               Float?
+  h22               Float?
+  h23               Float?
+  h24               Float?
+  createdAt         DateTime @default(now())
+  dataset           Dataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+
+  @@index([datasetId])
+  @@index([date])
+  @@index([stationPgdsCode])
+  @@map("load_records")
+}
+
+model TemporalConstraint {
+  id             String   @id @default(cuid())
+  datasetId      String?
+  feederId       String
+  date           String
+  constraintCode Int
+  createdAt      DateTime @default(now())
+  dataset        Dataset? @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  feeder         Feeder   @relation(fields: [feederId], references: [id], onDelete: Cascade)
+
+  @@index([feederId, date])
+  @@index([datasetId])
+  @@map("temporal_constraints")
+}
+
+model FeederRelation {
+  id              String       @id @default(cuid())
+  datasetId       String?
+  baseFeederId    String
+  relatedFeederId String
+  relationType    RelationType
+  createdAt       DateTime     @default(now())
+  baseFeeder      Feeder       @relation("BaseFeederRelation", fields: [baseFeederId], references: [id], onDelete: Cascade)
+  dataset         Dataset?     @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  relatedFeeder   Feeder       @relation("TargetFeederRelation", fields: [relatedFeederId], references: [id], onDelete: Cascade)
+
+  @@unique([baseFeederId, relatedFeederId, datasetId])
+  @@map("feeder_relations")
+}
+
+model ScheduleRun {
+  id                 String        @id @default(cuid())
+  status             RunStatus     @default(READY)
+  weekStartDate      String
+  errorMessage       String?
+  loadDatasetId      String?
+  temporalDatasetId  String?
+  relationsDatasetId String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  userId             String?
+  companyId          String
+  outageEvents       OutageEvent[]
+  company            Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  loadDataset        Dataset?      @relation("LoadDatasetRuns", fields: [loadDatasetId], references: [id])
+  relationsDataset   Dataset?      @relation("RelationDatasetRuns", fields: [relationsDatasetId], references: [id])
+  temporalDataset    Dataset?      @relation("TemporalDatasetRuns", fields: [temporalDatasetId], references: [id])
+  user               User?         @relation(fields: [userId], references: [id])
+
+  @@index([companyId])
+  @@map("schedule_runs")
+}
+
+model OutageEvent {
+  id        String      @id @default(cuid())
+  runId     String
+  feederId  String
+  date      String
+  weekday   String
+  startTime String
+  endTime   String
+  createdAt DateTime    @default(now())
+  feeder    Feeder      @relation(fields: [feederId], references: [id], onDelete: Cascade)
+  run       ScheduleRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([feederId])
+  @@map("outage_events")
+}
 
 enum Role {
-  SUPER_ADMIN // ادمین کل سامانه (مدیریت شرکت‌ها)
-  USER        // کاربر/اپراتور شرکت توزیع برق
+  SUPER_ADMIN
+  USER
 }
 
 enum DatasetType {
-  LOAD                  // داده‌های بار ساعتی
-  TEMPORAL_CONSTRAINTS  // محدودیت‌های زمانی
-  FEEDER_RELATIONS      // روابط بین فیدرها
+  LOAD
+  TEMPORAL_CONSTRAINTS
+  FEEDER_RELATIONS
 }
 
 enum RelationType {
-  SIMULTANEOUS      // هم‌زمان
-  NON_SIMULTANEOUS  // غیرهم‌زمان
+  SIMULTANEOUS
+  NON_SIMULTANEOUS
 }
 
 enum RunStatus {
@@ -34,259 +223,4 @@ enum RunStatus {
   COMPLETED
   FAILED
   INFEASIBLE
-}
-
-// ==========================================
-// ۲. شرکت‌های توزیع برق (Companies)
-// ==========================================
-model Company {
-  id          String   @id @default(cuid())
-  code        String   @unique // مثلاً "EPDC_HAMEDAN"
-  name        String   // شرکت توزیع نیروی برق استان همدان
-  province    String?  // استان
-  isActive    Boolean  @default(true)
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  users        User[]
-  feeders      Feeder[]
-  datasets     Dataset[]
-  scheduleRuns ScheduleRun[]
-
-  @@map("companies")
-}
-
-// ==========================================
-// ۳. کاربران (Users)
-// ==========================================
-model User {
-  id           String        @id @default(cuid())
-  companyId    String?       // برای SUPER_ADMIN می‌تواند null باشد، برای USER اجباری است
-  company      Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  email        String?
-  username     String        @unique
-  passwordHash String
-  fullName     String?
-  role         Role          @default(USER)
-  isActive     Boolean       @default(true)
-
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-
-  datasets     Dataset[]
-  scheduleRuns ScheduleRun[]
-
-  @@index([companyId])
-  @@map("users")
-}
-
-// ==========================================
-// ۴. فیدرها (Feeders)
-// ==========================================
-model Feeder {
-  id             String   @id @default(cuid())
-  companyId      String
-  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  code           String   // مثلاً F-101
-  name           String
-  substationName String?
-
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  temporalConstraints TemporalConstraint[]
-  baseRelations       FeederRelation[]     @relation("BaseFeederRelation")
-  targetRelations     FeederRelation[]     @relation("TargetFeederRelation")
-  outageEvents        OutageEvent[]
-
-  // کد فیدر در هر شرکت توزیع یکتاست، نه در کل کشور
-  @@unique([companyId, code])
-  @@index([companyId])
-  @@map("feeders")
-}
-
-// ==========================================
-// ۵. مجموعه‌داده‌ها (Datasets)
-// ==========================================
-model Dataset {
-  id          String      @id @default(cuid())
-  companyId   String
-  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  name        String
-  type        DatasetType
-  fileName    String?
-  recordCount Int         @default(0)
-  version     Int         @default(1)
-
-  userId      String?
-  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  loadRecords         LoadRecord[]
-  temporalConstraints TemporalConstraint[]
-  feederRelations     FeederRelation[]
-
-  loadRuns      ScheduleRun[] @relation("LoadDatasetRuns")
-  temporalRuns  ScheduleRun[] @relation("TemporalDatasetRuns")
-  relationRuns  ScheduleRun[] @relation("RelationDatasetRuns")
-
-  @@index([companyId])
-  @@map("datasets")
-}
-
-// ==========================================
-// ۶. رکوردهای بار ساعتی (Load Records)
-// ==========================================
-model LoadRecord {
-  id                String   @id @default(cuid())
-  datasetId         String
-  dataset           Dataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-
-  operatorName      String?
-  stationType       String?
-  stationPgdsCode   String
-  equipmentType     String?
-  equipment         String?
-  equipmentPgdsCode String?
-  energyType        String?
-
-  date              String
-  total             Float    @default(0)
-
-  h1  Float?
-  h2  Float?
-  h3  Float?
-  h4  Float?
-  h5  Float?
-  h6  Float?
-  h7  Float?
-  h8  Float?
-  h9  Float?
-  h10 Float?
-  h11 Float?
-  h12 Float?
-  h13 Float?
-  h14 Float?
-  h15 Float?
-  h16 Float?
-  h17 Float?
-  h18 Float?
-  h19 Float?
-  h20 Float?
-  h21 Float?
-  h22 Float?
-  h23 Float?
-  h24 Float?
-
-  createdAt DateTime @default(now())
-
-  @@index([datasetId])
-  @@index([date])
-  @@index([stationPgdsCode])
-  @@map("load_records")
-}
-
-// ==========================================
-// ۷. محدودیت‌های زمانی (Temporal Constraints)
-// ==========================================
-model TemporalConstraint {
-  id             String   @id @default(cuid())
-  datasetId      String?
-  dataset        Dataset? @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-
-  feederId       String
-  feeder         Feeder   @relation(fields: [feederId], references: [id], onDelete: Cascade)
-
-  date           String
-  constraintCode Int
-
-  createdAt      DateTime @default(now())
-
-  @@index([feederId, date])
-  @@index([datasetId])
-  @@map("temporal_constraints")
-}
-
-// ==========================================
-// ۸. روابط فیدرها (Feeder Relations)
-// ==========================================
-model FeederRelation {
-  id              String       @id @default(cuid())
-  datasetId       String?
-  dataset         Dataset?     @relation(fields: [datasetId], references: [id], onDelete: Cascade)
-
-  baseFeederId    String
-  baseFeeder      Feeder       @relation("BaseFeederRelation", fields: [baseFeederId], references: [id], onDelete: Cascade)
-
-  relatedFeederId String
-  relatedFeeder   Feeder       @relation("TargetFeederRelation", fields: [relatedFeederId], references: [id], onDelete: Cascade)
-
-  relationType    RelationType
-
-  createdAt       DateTime     @default(now())
-
-  @@unique([baseFeederId, relatedFeederId, datasetId])
-  @@map("feeder_relations")
-}
-
-// ==========================================
-// ۹. زمان‌بندی‌ها (Schedule Runs)
-// ==========================================
-model ScheduleRun {
-  id            String    @id @default(cuid())
-  companyId     String
-  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  status        RunStatus @default(READY)
-  weekStartDate String
-  errorMessage  String?
-
-  userId        String?
-  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  loadDatasetId     String?
-  loadDataset       Dataset? @relation("LoadDatasetRuns", fields: [loadDatasetId], references: [id], onDelete: SetNull)
-
-  temporalDatasetId String?
-  temporalDataset   Dataset? @relation("TemporalDatasetRuns", fields: [temporalDatasetId], references: [id], onDelete: SetNull)
-
-  relationsDatasetId String?
-  relationsDataset   Dataset? @relation("RelationDatasetRuns", fields: [relationsDatasetId], references: [id], onDelete: SetNull)
-
-  outageEvents  OutageEvent[]
-
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  @@index([companyId])
-  @@map("schedule_runs")
-}
-
-// ==========================================
-// ۱۰. رویدادهای خاموشی (Outage Events)
-// ==========================================
-model OutageEvent {
-  id        String      @id @default(cuid())
-  runId     String
-  run       ScheduleRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-
-  feederId  String
-  feeder    Feeder      @relation(fields: [feederId], references: [id], onDelete: Cascade)
-
-  date      String
-  weekday   String
-  startTime String
-  endTime   String
-
-  createdAt DateTime    @default(now())
-
-  @@index([runId])
-  @@index([feederId])
-  @@map("outage_events")
 }

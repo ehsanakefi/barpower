@@ -286,17 +286,20 @@ describe("API E2E Tests - Complete Suite", () => {
       });
     });
 
-    it("POST /api/feeders - رد ایجاد فیدر توسط USER عادی (403)", async () => {
-      const res = await request(app).post("/api/feeders").set(authUser()).send({
-        code: "F-FAIL",
-        name: "تست غیرمجاز",
-      });
+    it("POST /api/feeders/create - رد ایجاد فیدر توسط USER عادی (403)", async () => {
+      const res = await request(app)
+        .post("/api/feeders/create")
+        .set(authUser())
+        .send({
+          code: "F-FAIL",
+          name: "تست غیرمجاز",
+        });
       expect(res.status).toBe(403);
     });
 
-    it("POST /api/feeders - ایجاد فیدر جدید توسط SUPER_ADMIN", async () => {
+    it("POST /api/feeders/create - ایجاد فیدر جدید توسط SUPER_ADMIN", async () => {
       const res = await request(app)
-        .post("/api/feeders")
+        .post("/api/feeders/create")
         .set(authSuperAdmin())
         .send({
           code: "F-103",
