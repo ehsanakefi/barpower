@@ -1,0 +1,10 @@
+{
+  "description": "This web application enables users to effortlessly create and customize digital content, enhancing productivity and creativity for individuals and teams.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
